@@ -25,7 +25,6 @@ def wif_to_address(pkey):
     curve = ssl.EC_KEY_new_by_curve_name(NID_secp256k1)
 
     secret = wif_to_bin(pkey)
-
     priv_key_bignumber = ssl.BN_bin2bn(secret, 32, ssl.BN_new())
     group = ssl.EC_KEY_get0_group(curve)
     pub_key = ssl.EC_POINT_new(group)
@@ -40,7 +39,6 @@ def wif_to_address(pkey):
     mb = ctypes.create_string_buffer(size)
     ssl.i2o_ECPublicKey(curve, ctypes.byref(ctypes.pointer(mb)))
     pubkey = mb.raw
-
     ssl.EC_KEY_free(curve)
 
     # Step 2 - Perform SHA-256 hashing on the public key
@@ -52,25 +50,24 @@ def wif_to_address(pkey):
     ripemd160 = ripemd160_hasher.digest()
 
     # Step 4 - Add version byte in front of RIPEMD-160 hash (0x00 for Main Network)
-    base58_unencoded_address = add_version_and_checksum(ripemd160, chr(0))
-    base58_encoded_address = bin_to_base58(base58_unencoded_address, 1)
+    hashed_twice = hashlib.sha256(hashlib.sha256(chr(0) + ripemd160).digest()).digest()
+    address_bin = chr(0) + ripemd160 + hashed_twice[:4]
 
-    return base58_encoded_address, ripemd160
+    address_hex = address_bin.encode('hex')
+    address_int = int('0x' + address_hex, 16)
 
-def add_version_and_checksum( payload, version ):
-    hashed_twice = hashlib.sha256(hashlib.sha256(version + payload).digest()).digest()
-    return version + payload + hashed_twice[:4]
-
-def bin_to_base58( payload, pad_to_length ):
-    payload_int = int('0x' + payload.encode('hex'), 16)
+    # Convert to base58 using division and remainders
     base58_output = ""
-
-    while payload_int > 0:
-        payload_int, r = divmod(payload_int, 58)
+    while address_int > 0:
+        address_int, r = divmod(address_int, 58)
         base58_output = base58_chars[r] + base58_output
 
-    while len(base58_output) < pad_to_length:
+    # Pad the address with a '1' for every zero-byte ('00') in the unencoded address
+    # as specified by the bitcoin protocol
+    i = 0
+    while address_hex[2*i:2*i+2] == "00":
         base58_output = base58_chars[0] + base58_output
+        i += 1
 
     return base58_output
 
@@ -79,7 +76,20 @@ def int_to_wif(private_int):
     step2 = hashlib.sha256(binascii.unhexlify(step1)).hexdigest()
     step3 = hashlib.sha256(binascii.unhexlify(step2)).hexdigest()
     step4 = int(step1 + step3[:8] , 16)
-    return bin_to_base58( int_to_bin(step4), 51 )
+
+    wif_bin = int_to_bin(step4)
+    wif_hex = wif_bin.encode('hex')
+    wif_int = int('0x' + wif_hex, 16)
+    wif_base58 = ""
+
+    while wif_int > 0:
+        wif_int, r = divmod(wif_int, 58)
+        wif_base58 = base58_chars[r] + wif_base58
+
+    while len(wif_base58) < 51:
+        wif_base58 = base58_chars[0] + wif_base58
+
+    return wif_base58
 
 def wif_to_int(private_wif):
     step1 = sum([base58_chars.index(private_wif[::-1][l])*(58**l) for l in range(len(private_wif))])
@@ -101,11 +111,10 @@ def is_wif_valid(private_wif):
     return int_to_wif(wif_to_int(private_wif))==private_wif
 
 
+key = int_to_wif(2309432908804230)
 
-for i in range(1, 10000000):
-    wif = int_to_wif(i)
-    (addr, hex160) = wif_to_address(wif)
+print key
+print wif_to_address(key)
+print wif_to_int(key)
 
-    if ( hex160.encode('hex')[0:5] == "00000" ):
-        print i, wif, addr, hex160.encode('hex')
 
