@@ -45,7 +45,7 @@ def wif_to_address(pkey):
     step2 = hashlib.sha256(pubkey).digest()
 
     # Step 3 - Perform RIPEMD-160 hashing on the result of SHA-256
-    ripemd160 = do_md160(step2)
+    ripemd160 = md160(step2)
 
     # Step 4 - Add version byte in front of RIPEMD-160 hash (0x00 for Main Network)
     hashed_twice = hashlib.sha256(hashlib.sha256(chr(0) + ripemd160).digest()).digest()
@@ -144,7 +144,12 @@ def generate_key(passphrase, salt, key_number):
 def generate_test_addresses_and_check(n):
     for i in range(n):
         private_key = generate_key(passphrase, "1234", i)
-        print int_to_wif(private_key)
+        private_wif = int_to_wif(private_key)
+        print private_wif + ', ' + wif_to_address( private_wif )
+        '''
+        with open('address_list.txt', 'w') as f:
+            f.write(private_wif + ', ' + wif_to_address( private_wif ))
+        '''
 
-generate_test_addresses_and_check(503)
+generate_test_addresses_and_check(100)
 
