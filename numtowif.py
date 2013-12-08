@@ -45,9 +45,7 @@ def wif_to_address(pkey):
     step2 = hashlib.sha256(pubkey).digest()
 
     # Step 3 - Perform RIPEMD-160 hashing on the result of SHA-256
-    ripemd160_hasher = hashlib.new('ripemd160')
-    ripemd160_hasher.update(step2)
-    ripemd160 = ripemd160_hasher.digest()
+    ripemd160 = do_md160(step2)
 
     # Step 4 - Add version byte in front of RIPEMD-160 hash (0x00 for Main Network)
     hashed_twice = hashlib.sha256(hashlib.sha256(chr(0) + ripemd160).digest()).digest()
@@ -70,6 +68,12 @@ def wif_to_address(pkey):
         i += 1
 
     return base58_output
+
+def md160(value):
+    ripemd160_hasher = hashlib.new('ripemd160')
+    ripemd160_hasher.update(value)
+    return ripemd160_hasher.digest()
+
 
 def int_to_wif(private_int):
     step1 = '80'+hex(private_int)[2:].strip('L').zfill(64)
@@ -111,10 +115,36 @@ def is_wif_valid(private_wif):
     return int_to_wif(wif_to_int(private_wif))==private_wif
 
 
-key = int_to_wif(2309432908804230)
+passphrase = "aoji faewo jawo fjaweo fjawoei jawoif jaofj aojf aojfeoaj oja nvzxckjv naw epa"
 
-print key
-print wif_to_address(key)
-print wif_to_int(key)
+def generate_key(passphrase, salt, key_number):
+    ''' Generates key #key_number '''
 
+    # Hash twice, like everything else in bitcoin, to pseudo-randomize the passphrase
+    key = hashlib.sha256(passphrase).digest()
+    key = hashlib.sha256(key).digest()
+
+    # Generate the Nth nonce
+    nonce = salt
+    for i in range(key_number):
+        nonce = hashlib.sha256(nonce).digest()
+
+    # This is so you can't get the nonce n if you manage to reverse sha256 to get nonce n-1
+    nonce = md160(nonce)
+
+    # Concatenate the key with the Nth nonce
+    secret = key + nonce
+
+    # Hash twice, like everything else in bitcoin
+    secret = hashlib.sha256( secret ).digest()
+    secret = hashlib.sha256( secret ).hexdigest()
+
+    return int(secret, 16)
+
+def generate_test_addresses_and_check(n):
+    for i in range(n):
+        private_key = generate_key(passphrase, "1234", i)
+        print int_to_wif(private_key)
+
+generate_test_addresses_and_check(503)
 
